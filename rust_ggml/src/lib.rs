@@ -21,6 +21,16 @@ pub struct Context {
     ctx: *mut ffi_ggml::ggml_context,
 }
 
+macro_rules! safe_bindings_op {
+    ($name:ident, $ffi_fn:path $(, $arg:ident)*) => {
+        pub fn $name(&self, $($arg: &Tensor),*) -> Tensor {
+            Tensor {
+                tensor: unsafe { $ffi_fn(self.ctx, $($arg.tensor),*) },
+            }
+        }
+    }
+}
+
 impl Context {
     pub fn new(mem_size: usize, mem_buffer: Option<&mut [u8]>, no_alloc: bool) -> Result<Self, ()> {
         let params = ffi_ggml::ggml_init_params {
@@ -115,11 +125,287 @@ impl Context {
         })
     }
 
-    pub fn add(&self, a: &Tensor, b: &Tensor) -> Tensor {
-        Tensor {
-            tensor: unsafe { ffi_ggml::ggml_add(self.ctx, a.tensor, b.tensor) },
-        }
+    pub fn duplicate(&self, a: &Tensor) -> Result<Tensor, ()> {
+        Ok(Tensor {
+            tensor: unsafe { ffi_ggml::ggml_dup_tensor(self.ctx, a.tensor) },
+        })
     }
+
+    safe_bindings_op!(abs, ffi_ggml::ggml_abs, a);
+
+    // check done at GGML level
+    safe_bindings_op!(add, ffi_ggml::ggml_add, a, b);
+
+    safe_bindings_op!(cont, ffi_ggml::ggml_cont, a);
+
+    // check done at GGML level
+    safe_bindings_op!(conv_1d_1s, ffi_ggml::ggml_conv_1d_1s, a, b);
+
+    // check done at GGML level
+    safe_bindings_op!(conv_1d_2s, ffi_ggml::ggml_conv_1d_2s, a, b);
+
+    // check done at GGML level
+    safe_bindings_op!(sub, ffi_ggml::ggml_sub, a, b);
+
+    // check done at GGML level
+    safe_bindings_op!(mul, ffi_ggml::ggml_mul, a, b);
+
+    // check done at GGML level
+    safe_bindings_op!(div, ffi_ggml::ggml_div, a, b);
+
+    safe_bindings_op!(sqr, ffi_ggml::ggml_sqr, a);
+
+    safe_bindings_op!(sqrt, ffi_ggml::ggml_sqrt, a);
+
+    safe_bindings_op!(sum, ffi_ggml::ggml_sum, a);
+
+    safe_bindings_op!(mean, ffi_ggml::ggml_mean, a);
+
+    // check done at GGML level
+    safe_bindings_op!(repeat, ffi_ggml::ggml_repeat, a, b);
+
+    safe_bindings_op!(sgn, ffi_ggml::ggml_sgn, a);
+
+    safe_bindings_op!(neg, ffi_ggml::ggml_neg, a);
+
+    safe_bindings_op!(step, ffi_ggml::ggml_step, a);
+
+    safe_bindings_op!(relu, ffi_ggml::ggml_relu, a);
+
+    safe_bindings_op!(gelu, ffi_ggml::ggml_gelu, a);
+
+    safe_bindings_op!(silu, ffi_ggml::ggml_silu, a);
+
+    safe_bindings_op!(norm, ffi_ggml::ggml_norm, a);
+
+    safe_bindings_op!(rms_norm, ffi_ggml::ggml_rms_norm, a);
+
+    // check done at GGML level
+    safe_bindings_op!(mul_mat, ffi_ggml::ggml_mul_mat, a, b);
+
+    safe_bindings_op!(scale, ffi_ggml::ggml_scale, a, b);
+
+    // check done at GGML level
+    safe_bindings_op!(reshape, ffi_ggml::ggml_reshape, a, b);
+
+    safe_bindings_op!(transpose, ffi_ggml::ggml_transpose, a);
+
+    safe_bindings_op!(get_rows, ffi_ggml::ggml_get_rows, a, b);
+
+    safe_bindings_op!(softmax, ffi_ggml::ggml_soft_max, a);
+
+    // pub fn map_unary(
+    //     &self,
+    //     a: &Tensor,
+    //     unary_op: Option<unsafe fn(i32, &mut f32, &f32)>,
+    // ) -> Result<Tensor, ()> {
+    //     // TODO: check type f32
+    //     Ok(Tensor {
+    //         tensor: unsafe { ffi_ggml::ggml_map_unary_f32(self.ctx, a.tensor, unary_op) },
+    //     })
+    // }
+
+    // pub fn map_binary(
+    //     &self,
+    //     a: &Tensor,
+    //     b: &Tensor,
+    //     binary_op: Option<fn(i32, &mut f32, &f32, &f32)>,
+    // ) -> Tensor {
+    //     // TODO: check type f32
+    //     Tensor {
+    //         tensor: unsafe {
+    //             ffi_ggml::ggml_map_binary_f32(self.ctx, a.tensor, b.tensor, binary_op)
+    //         },
+    //     }
+    // }
+
+    pub fn view_1d(&self, a: &Tensor, nelements: usize, offset: usize) -> Result<Tensor, ()> {
+        // TODO: check nelements is within bounds
+        // TODO: check offset is ok
+        // TODO: check a has the right dimension
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_view_1d(
+                    self.ctx,
+                    a.tensor,
+                    nelements.try_into().unwrap(),
+                    offset.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn view_2d(
+        &self,
+        a: &Tensor,
+        nelements0: usize,
+        nelements1: usize,
+        nbytes1: usize,
+        offset: usize,
+    ) -> Result<Tensor, ()> {
+        // TODO: check nelements is within bounds
+        // TODO: check offset is ok
+        // TODO: check a has the right dimension
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_view_2d(
+                    self.ctx,
+                    a.tensor,
+                    nelements0.try_into().unwrap(),
+                    nelements1.try_into().unwrap(),
+                    nbytes1.try_into().unwrap(),
+                    offset.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn view_3d(
+        &self,
+        a: &Tensor,
+        nelements0: usize,
+        nelements1: usize,
+        nelements2: usize,
+        nbytes1: usize,
+        nbytes2: usize,
+        offset: usize,
+    ) -> Result<Tensor, ()> {
+        // TODO: check nelements is within bounds
+        // TODO: check offset is ok
+        // TODO: check a has the right dimension
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_view_3d(
+                    self.ctx,
+                    a.tensor,
+                    nelements0.try_into().unwrap(),
+                    nelements1.try_into().unwrap(),
+                    nelements2.try_into().unwrap(),
+                    nbytes1.try_into().unwrap(),
+                    nbytes2.try_into().unwrap(),
+                    offset.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn reshape_2d(
+        &self,
+        a: &Tensor,
+        nelements0: usize,
+        nelements1: usize,
+    ) -> Result<Tensor, ()> {
+        // TODO: check on nelements0 and nelements1
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_reshape_2d(
+                    self.ctx,
+                    a.tensor,
+                    nelements0.try_into().unwrap(),
+                    nelements1.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn reshape_3d(
+        &self,
+        a: &Tensor,
+        nelements0: usize,
+        nelements1: usize,
+        nelements2: usize,
+    ) -> Result<Tensor, ()> {
+        // TODO: check on nelements0 and nelements1 and nelements2
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_reshape_3d(
+                    self.ctx,
+                    a.tensor,
+                    nelements0.try_into().unwrap(),
+                    nelements1.try_into().unwrap(),
+                    nelements2.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn permute(
+        &self,
+        a: &Tensor,
+        axis0: usize,
+        axis1: usize,
+        axis2: usize,
+        axis3: usize,
+    ) -> Result<Tensor, ()> {
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_permute(
+                    self.ctx,
+                    a.tensor,
+                    axis0.try_into().unwrap(),
+                    axis1.try_into().unwrap(),
+                    axis2.try_into().unwrap(),
+                    axis3.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn diag_mask_inf(&self, a: &Tensor, n_past: usize) -> Result<Tensor, ()> {
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_diag_mask_inf(self.ctx, a.tensor, n_past.try_into().unwrap())
+            },
+        })
+    }
+
+    pub fn rope(&self, a: &Tensor, n_past: usize, n_dims: usize, skip: bool) -> Result<Tensor, ()> {
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_rope(
+                    self.ctx,
+                    a.tensor,
+                    n_past.try_into().unwrap(),
+                    n_dims.try_into().unwrap(),
+                    skip.try_into().unwrap(),
+                )
+            },
+        })
+    }
+
+    pub fn flash_attention(
+        &self,
+        query: &Tensor,
+        key: &Tensor,
+        value: &Tensor,
+        masked: bool,
+    ) -> Result<Tensor, ()> {
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_flash_attn(self.ctx, query.tensor, key.tensor, value.tensor, masked)
+            },
+        })
+    }
+
+    pub fn flash_feed_forward(
+        &self,
+        a: &Tensor,
+        b0: &Tensor,
+        b1: &Tensor,
+        c0: &Tensor,
+        c1: &Tensor,
+    ) -> Result<Tensor, ()> {
+        Ok(Tensor {
+            tensor: unsafe {
+                ffi_ggml::ggml_flash_ff(
+                    self.ctx, a.tensor, b0.tensor, b1.tensor, c0.tensor, c1.tensor,
+                )
+            },
+        })
+    }
+
+    // TODO: map unary, map binary
+    // TODO: copy via the copy trait
 }
 
 impl Drop for Context {
@@ -169,18 +455,6 @@ pub struct Tensor {
 }
 
 impl Tensor {
-    pub fn duplicate(&self, ctx: &Context) -> Result<Tensor, ()> {
-        Ok(Tensor {
-            tensor: unsafe { ffi_ggml::ggml_dup_tensor(ctx.ctx, self.tensor) },
-        })
-    }
-
-    pub fn view(&self, ctx: &Context) -> Result<Tensor, ()> {
-        Ok(Tensor {
-            tensor: unsafe { ffi_ggml::ggml_view_tensor(ctx.ctx, self.tensor) },
-        })
-    }
-
     pub fn nbytes(&self) -> usize {
         let res = unsafe { ffi_ggml::ggml_nbytes(self.tensor) };
         res.try_into().unwrap()
@@ -197,7 +471,6 @@ impl Tensor {
     }
 
     // TODO: make get_data and get_data_1d generic over the tensor type
-
     pub fn get_data_f32(&self) -> Result<Vec<f32>, ()> {
         let ptr = unsafe { ffi_ggml::ggml_get_data_f32(self.tensor) };
         match ptr.is_null() {
@@ -219,8 +492,10 @@ impl Tensor {
     }
 
     // TODO: make set_data and set_data_1d generic over the tensor type
-    pub fn set_data_f32(&self, value: f32) {
-        let _ = unsafe { ffi_ggml::ggml_set_f32(self.tensor, value) };
+    pub fn set_data_f32(&self, value: f32) -> Tensor {
+        Tensor {
+            tensor: unsafe { ffi_ggml::ggml_set_f32(self.tensor, value) },
+        }
     }
 
     pub fn set_data_f32_1d(&self, value: f32, idx: usize) -> Result<(), ()> {
@@ -231,33 +506,13 @@ impl Tensor {
             }),
         }
     }
+
+    pub fn set_zero(&self) -> Tensor {
+        Tensor {
+            tensor: unsafe { ffi_ggml::ggml_set_zero(self.tensor) },
+        }
+    }
 }
 
-//     struct ggml_tensor * ggml_set_zero(struct ggml_tensor * tensor);
-
-//     */
-// }
-
-// /*
-//     functions
-//     helpers
-//     ggml_cpy
-
-//     Ops
-//     ggml_norm
-//     ggml_add
-//     ggml_mul
-//     ggml_repeat
-//     ggml_rope
-//     ggml_reshape_3d
-//     ggml_mul_mat
-//     ggml_transpose
-//     ggml_view_1d
-//     ggml_view_2d
-//     ggml_permute
-//     ggml_scale
-//     ggml_soft_max
-
-// */
 #[cfg(test)]
 mod test;
